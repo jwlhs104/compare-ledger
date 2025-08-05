@@ -178,6 +178,97 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
     return stayRecords;
   }
 
+  getSpecialPricingData(roomTypeText, roomPeopleCount, orderNumber, date) {
+    try {
+      const rawPrice = this.getRoomPrice(roomTypeText, roomPeopleCount, "成人", date, orderNumber);
+      
+      if (typeof rawPrice === "object" && rawPrice.price) {
+        return { price: rawPrice.price, data: rawPrice, error: null };
+      } else if (typeof rawPrice === "number") {
+        return { price: rawPrice, data: null, error: null };
+      } else if (typeof rawPrice === "string") {
+        return { price: null, data: null, error: `${roomTypeText}-${roomPeopleCount}入住-無報價` };
+      } else {
+        return { price: null, data: null, error: `${roomTypeText}-${roomPeopleCount}入住-查無房型報價` };
+      }
+    } catch (e) {
+      return { price: null, data: null, error: `錯誤: 價格查詢例外 - ${e.message}` };
+    }
+  }
+
+  getRegularPricingData(roomTypeText, roomPeopleCount, person, date) {
+    try {
+      const rawPrice = this.getRoomPrice(roomTypeText, roomPeopleCount, person.ageGroup, date, person.orderNumber);
+      
+      if (typeof rawPrice === "number") {
+        return { price: Math.round(rawPrice), error: null };
+      } else if (typeof rawPrice === "string") {
+        return { price: null, error: `${roomTypeText}-${roomPeopleCount}入住-無報價` };
+      } else {
+        return { price: null, error: `${roomTypeText}-${roomPeopleCount}入住-查無房型報價` };
+      }
+    } catch (e) {
+      return { price: null, error: `錯誤: 價格查詢例外 - ${e.message}` };
+    }
+  }
+
+  formatRoomType(isSpecialPricing, specialPriceData, room, totalNights, index) {
+    if (isSpecialPricing && specialPriceData) {
+      // For special pricing, only add room type for the first person on the first day
+      if (index === 0 && room.date === room.firstDate) {
+        return `${specialPriceData.orderNumber}${specialPriceData.name || "無名稱"}${specialPriceData.people}人$${specialPriceData.price}|${room.roomNumber}_${room.date}_${index}`;
+      }
+      return null;
+    } else {
+      return `${room.roomType}-${room.people.length}入住${totalNights}晚`;
+    }
+  }
+
+  getGroupCategory(roomTypeText, person) {
+    if (roomTypeText.endsWith("(官網)")) {
+      return "官網";
+    } else if (roomTypeText.endsWith("(網路訂房)")) {
+      return "網路訂房";
+    } else {
+      return person.ageGroup;
+    }
+  }
+
+  processRoomType(ageGroupData, roomType, price, room, totalNights) {
+    if (!roomType) return;
+
+    ageGroupData.房型[roomType] = ageGroupData.房型[roomType] || {
+      people: 0,
+      price: 0,
+      totalNights,
+    };
+
+    ageGroupData.房型[roomType].people++;
+    const dayDiff = dateDifferenceInDays(room.date, room.firstDate) + 1;
+    ageGroupData.房型[roomType].day = ageGroupData.房型[roomType].day > dayDiff
+      ? ageGroupData.房型[roomType].day
+      : dayDiff;
+
+    if (typeof price === "number") {
+      ageGroupData.房型[roomType].price += price;
+      ageGroupData.房費 += price;
+    }
+  }
+
+  processMealAndTax(ageGroupData, person) {
+    const mealType = person.mealType;
+    
+    if (mealType === "早餐" || mealType === "早晚餐") {
+      ageGroupData.餐食 += foodCostData.雫石[person.ageGroup].早餐;
+    }
+    if (mealType === "晚餐" || mealType === "早晚餐") {
+      ageGroupData.餐食 += foodCostData.雫石[person.ageGroup].晚餐;
+    }
+    if (person.ageGroup === "成人") {
+      ageGroupData.入湯稅 += 150;
+    }
+  }
+
   reconcile(rooms) {
     this.createPriceTable();
     this.loadSpecialPriceData();
@@ -188,158 +279,63 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
       const stayRooms = stay.roomRecords;
       const totalNights = stay.getTotalNights();
       const calDate = stay.firstDate;
+      
       result[calDate] = result[calDate] || {
         成人: { 房費: 0, 餐食: 0, 入湯稅: 0, 房型: {} },
         孩童: { 房費: 0, 餐食: 0, 入湯稅: 0, 房型: {} },
         官網: { 房費: 0, 餐食: 0, 入湯稅: 0, 房型: {} },
         網路訂房: { 房費: 0, 餐食: 0, 入湯稅: 0, 房型: {} },
       };
+
       stayRooms.forEach((room) => {
-        // const roomTypeText = this.roomTypeMap[room.roomType];
         const roomTypeText = room.roomType;
-        if (
-          !roomTypeText ||
-          roomTypeText.includes("東品") ||
-          roomTypeText.includes("不佔床")
-        ) {
+        if (!roomTypeText || roomTypeText.includes("東品") || roomTypeText.includes("不佔床")) {
           return;
         }
 
-        // Check if this is a special pricing room (官網 or 網路訂房)
-        const isSpecialPricing =
-          roomTypeText.endsWith("(官網)") ||
-          roomTypeText.endsWith("(網路訂房)");
+        const isSpecialPricing = roomTypeText.endsWith("(官網)") || roomTypeText.endsWith("(網路訂房)");
+        let specialPricingResult = null;
 
-        // For special pricing rooms, get the total room price once and distribute across stay days
-        let roomPrice = null;
-        let roomPriceError = null;
-        let specialPriceData = null;
-
+        // Get special pricing data once per room if needed
         if (isSpecialPricing) {
-          try {
-            const rawPrice = this.getRoomPrice(
-              roomTypeText,
-              room.people.length,
-              "成人",
-              room.date,
-              room.people[0]?.orderNumber
-            );
-            if (typeof rawPrice === "object" && rawPrice.price) {
-              // Divide the total stay price by total nights to get daily price
-              roomPrice = rawPrice.price;
-              specialPriceData = rawPrice;
-            } else if (typeof rawPrice === "number") {
-              // Fallback for backward compatibility
-              roomPrice = rawPrice;
-            } else if (typeof rawPrice === "string") {
-              roomPriceError = `${roomTypeText}-${room.people.length}入住-無報價`;
-            } else {
-              roomPriceError = `${roomTypeText}-${room.people.length}入住-查無房型報價`;
-            }
-          } catch (e) {
-            roomPriceError = `錯誤: 價格查詢例外 - ${e.message}`;
-          }
+          specialPricingResult = this.getSpecialPricingData(
+            roomTypeText, 
+            room.people.length, 
+            room.people[0]?.orderNumber, 
+            room.date
+          );
         }
 
         room.people.forEach((person, index) => {
-          const mealType = person.mealType;
-          let price;
+          let price = null;
           let priceError = null;
 
-          if (!roomTypeText) {
-            // priceError = `錯誤: 找不到對應房型 ${room.roomType}`;
-            return;
-          } else {
-            if (isSpecialPricing) {
-              // For special pricing, only assign the daily room price to the first person
-              if (index === 0) {
-                price = roomPrice;
-                priceError = roomPriceError;
-              } else {
-                // Other people in the same room don't get room price (already counted)
-                price = 0;
-              }
+          // Calculate price based on pricing type
+          if (isSpecialPricing) {
+            if (index === 0) {
+              price = specialPricingResult.price;
+              priceError = specialPricingResult.error;
             } else {
-              // For regular pricing, get price per person
-              try {
-                const rawPrice = this.getRoomPrice(
-                  roomTypeText,
-                  room.people.length,
-                  person.ageGroup,
-                  room.date,
-                  person.orderNumber
-                );
-                if (typeof rawPrice === "number") {
-                  price = Math.round(rawPrice);
-                } else if (typeof rawPrice === "string") {
-                  priceError = `${roomTypeText}-${room.people.length}入住-無報價`;
-                } else {
-                  priceError = `${roomTypeText}-${room.people.length}入住-查無房型報價`;
-                }
-              } catch (e) {
-                priceError = `錯誤: 價格查詢例外 - ${e.message}`;
-              }
+              price = 0; // Other people don't get room price
             }
-          }
-
-          const dateResult = result[calDate];
-
-          // Determine the grouping category based on room type
-          let groupCategory;
-          if (roomTypeText.endsWith("(官網)")) {
-            groupCategory = "官網";
-          } else if (roomTypeText.endsWith("(網路訂房)")) {
-            groupCategory = "網路訂房";
           } else {
-            groupCategory = person.ageGroup; // Use original age group for regular rooms
+            const regularResult = this.getRegularPricingData(roomTypeText, room.people.length, person, room.date);
+            price = regularResult.price;
+            priceError = regularResult.error;
           }
 
-          const ageGroupData = dateResult[groupCategory];
-          if (!ageGroupData) {
-            return;
-          }
+          const groupCategory = this.getGroupCategory(roomTypeText, person);
+          const ageGroupData = result[calDate][groupCategory];
+          
+          if (!ageGroupData) return;
 
-          // Format room type based on whether it's special pricing or not
+          // Process room type if there's a valid price
           if (price) {
-            let roomType;
-            if (isSpecialPricing && specialPriceData) {
-              // For special pricing, only add room type for the first person on the first day (same logic as price)
-              if (index === 0 && room.date === room.firstDate) {
-                // Format: {orderNumber}{name in specialPriceSheet}{room people(specialPriceSheet column J)}{price}
-                // Add unique identifier to prevent aggregation, will be stripped in result_writer
-                roomType = `${specialPriceData.orderNumber}${
-                  specialPriceData.name || "無名稱"
-                }${specialPriceData.people}人$${specialPriceData.price}|${
-                  room.roomNumber
-                }_${room.date}_${index}`;
-              }
-            } else {
-              roomType = `${room.roomType}-${room.people.length}入住${totalNights}晚`;
-            }
-
-            // Only process room type if it's defined
-            if (roomType) {
-              ageGroupData.房型[roomType] = ageGroupData.房型[roomType] || {
-                people: 0,
-                price: 0,
-                totalNights,
-              };
-
-              ageGroupData.房型[roomType].people++;
-              const dayDiff =
-                dateDifferenceInDays(room.date, room.firstDate) + 1;
-              ageGroupData.房型[roomType].day =
-                ageGroupData.房型[roomType].day > dayDiff
-                  ? ageGroupData.房型[roomType].day
-                  : dayDiff;
-              if (typeof price === "number") {
-                ageGroupData.房型[roomType].price += price;
-                ageGroupData.房費 += price;
-              }
-            }
+            const roomType = this.formatRoomType(isSpecialPricing, specialPricingResult?.data, room, totalNights, index);
+            this.processRoomType(ageGroupData, roomType, price, room, totalNights);
           }
 
-          // Log error if price lookup failed
+          // Log errors
           if (priceError) {
             ageGroupData.房型.錯誤列表 = ageGroupData.房型.錯誤列表 || [];
             if (!ageGroupData.房型.錯誤列表.includes(priceError)) {
@@ -347,16 +343,8 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
             }
           }
 
-          if (mealType === "早餐" || mealType === "早晚餐") {
-            ageGroupData.餐食 += foodCostData.雫石[person.ageGroup].早餐;
-          }
-          if (mealType === "晚餐" || mealType === "早晚餐") {
-            ageGroupData.餐食 += foodCostData.雫石[person.ageGroup].晚餐;
-          }
-
-          if (person.ageGroup === "成人") {
-            ageGroupData.入湯稅 += 150;
-          }
+          // Process meals and tax
+          this.processMealAndTax(ageGroupData, person);
         });
       });
     });
