@@ -2,7 +2,8 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
   constructor(priceSheet, roomTypeMap) {
     super();
     this.priceSheet = priceSheet;
-    this.roomTypeMap = roomTypeMap
+    this.roomTypeMap = roomTypeMap;
+    this.specialPriceData = null;
   }
 
   createPriceTable() {
@@ -25,11 +26,89 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
     this.priceTable = priceTable;
   }
 
-  getRoomPrice(roomTypeText, peopleAmount, ageGroup, date) {
+  loadSpecialPriceData() {
+    if (this.specialPriceData === null) {
+      try {
+        const specialPriceSheet = SpreadsheetApp.openById("1OUafnXTtXwwKgkWlRKJn9Om34_egwvieQfMhdRVENjE");
+        const sheet = specialPriceSheet.getSheetByName("訂房預約狀況(使用中)");
+        this.specialPriceData = sheet.getDataRange().getValues();
+      } catch (error) {
+        console.error("Error loading special price data:", error);
+        this.specialPriceData = [];
+      }
+    }
+  }
+
+  getRoomPrice(roomTypeText, peopleAmount, ageGroup, date, orderNumber = null) {
+    // Check if roomType ends with (官網) or (網路訂房)
+    if (roomTypeText.endsWith("(官網)") || roomTypeText.endsWith("(網路訂房)")) {
+      return this.getPriceFromGoogleSheet(roomTypeText, peopleAmount, ageGroup, date, orderNumber);
+    }
+    
     let maxPeople = Math.max(...Object.keys(this.priceTable[roomTypeText]))
     peopleAmount = peopleAmount > maxPeople ? maxPeople : peopleAmount;
     const rawPrice = this.priceTable?.[roomTypeText]?.[peopleAmount]?.["成人"]?.[date];
     return rawPrice;
+  }
+
+  getPriceFromGoogleSheet(roomTypeText, peopleAmount, ageGroup, date, orderNumber) {
+    try {
+      // Use cached data
+      const data = this.specialPriceData;
+      
+      // Get column indices using helper function
+      const orderNumberCol = getColumnIndex("G");
+      const roomTypeCol = getColumnIndex("E");
+      const dateCol = getColumnIndex("B");
+      const priceCol = getColumnIndex("L");
+      
+      // Search for matching orderNumber first (most specific match)
+      if (orderNumber) {
+        for (let i = 1; i < data.length; i++) { // Skip header row
+          const row = data[i];
+          const sheetOrderNumber = row[orderNumberCol];
+          const sheetPrice = row[priceCol];
+          
+          if (sheetOrderNumber && sheetOrderNumber.toString() === orderNumber.toString()) {
+            if (!isNaN(sheetPrice) && sheetPrice !== null && sheetPrice !== "") {
+              return Number(sheetPrice);
+            }
+          }
+        }
+      }
+      
+      // If no orderNumber match found, try matching by room type and date
+      for (let i = 1; i < data.length; i++) { // Skip header row
+        const row = data[i];
+        const sheetRoomType = row[roomTypeCol];
+        const sheetDate = row[dateCol];
+        const sheetPrice = row[priceCol];
+        
+        // Match room type (remove the suffix for comparison)
+        const baseRoomType = roomTypeText.replace(/\((官網|網路訂房)\)$/, "");
+        
+        if (sheetRoomType && sheetRoomType.includes(baseRoomType)) {
+          // Format date for comparison
+          let formattedSheetDate;
+          if (sheetDate instanceof Date) {
+            formattedSheetDate = formatDate(sheetDate);
+          } else if (typeof sheetDate === 'string') {
+            formattedSheetDate = formatDate(new Date(sheetDate));
+          }
+          
+          if (formattedSheetDate === date && !isNaN(sheetPrice) && sheetPrice !== null && sheetPrice !== "") {
+            return Number(sheetPrice);
+          }
+        }
+      }
+      
+      // If no matching record found
+      return `${roomTypeText}-${peopleAmount}入住-Google Sheet無報價`;
+      
+    } catch (error) {
+      console.error("Error accessing Google Sheet:", error);
+      return `${roomTypeText}-${peopleAmount}入住-Google Sheet查詢錯誤`;
+    }
   }
 
   createStayRecords(rooms) {
@@ -49,6 +128,7 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
 
   reconcile(rooms) {
     this.createPriceTable();
+    this.loadSpecialPriceData();
     const result = {};
 
     const stays = this.createStayRecords(rooms);
@@ -68,6 +148,30 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
         if (!roomTypeText || roomTypeText.includes("東品") || roomTypeText.includes("不佔床")) {
           return
         }
+        
+        // Check if this is a special pricing room (官網 or 網路訂房)
+        const isSpecialPricing = roomTypeText.endsWith("(官網)") || roomTypeText.endsWith("(網路訂房)");
+        
+        // For special pricing rooms, get the total room price once and distribute across stay days
+        let dailyRoomPrice = null;
+        let roomPriceError = null;
+        
+        if (isSpecialPricing) {
+          try {
+            const rawPrice = this.getRoomPrice(roomTypeText, room.people.length, "成人", room.date, room.people[0]?.orderNumber);
+            if (typeof rawPrice === 'number') {
+              // Divide the total stay price by total nights to get daily price
+              dailyRoomPrice = Math.round(rawPrice / totalNights);
+            } else if (typeof rawPrice === 'string') {
+              roomPriceError = `${roomTypeText}-${room.people.length}入住-無報價`;
+            } else {
+              roomPriceError = `${roomTypeText}-${room.people.length}入住-查無房型報價`;
+            }
+          } catch (e) {
+            roomPriceError = `錯誤: 價格查詢例外 - ${e.message}`;
+          }
+        }
+
         room.people.forEach((person, index) => {
           const mealType = person.mealType;
           let price;
@@ -77,22 +181,45 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
             // priceError = `錯誤: 找不到對應房型 ${room.roomType}`;
             return
           } else {
-            try {
-              const rawPrice = this.getRoomPrice(roomTypeText, room.people.length, person.ageGroup, room.date)
-              if (typeof rawPrice === 'number') {
-                price = Math.round(rawPrice);
-              } else if (typeof rawPrice === 'string') {
-                priceError = `${roomTypeText}-${room.people.length}入住-無報價`;
+            if (isSpecialPricing) {
+              // For special pricing, only assign the daily room price to the first person
+              if (index === 0) {
+                price = dailyRoomPrice;
+                priceError = roomPriceError;
               } else {
-                priceError = `${roomTypeText}-${room.people.length}入住-查無房型報價`;
+                // Other people in the same room don't get room price (already counted)
+                price = 0;
               }
-            } catch (e) {
-              priceError = `錯誤: 價格查詢例外 - ${e.message}`;
+            } else {
+              // For regular pricing, get price per person
+              try {
+                const rawPrice = this.getRoomPrice(roomTypeText, room.people.length, person.ageGroup, room.date, person.orderNumber)
+                if (typeof rawPrice === 'number') {
+                  price = Math.round(rawPrice);
+                } else if (typeof rawPrice === 'string') {
+                  priceError = `${roomTypeText}-${room.people.length}入住-無報價`;
+                } else {
+                  priceError = `${roomTypeText}-${room.people.length}入住-查無房型報價`;
+                }
+              } catch (e) {
+                priceError = `錯誤: 價格查詢例外 - ${e.message}`;
+              }
             }
           }
 
           const dateResult = result[calDate];
-          const ageGroupData = dateResult[person.ageGroup];
+          
+          // Determine the grouping category based on room type
+          let groupCategory;
+          if (roomTypeText.endsWith("(官網)")) {
+            groupCategory = "官網";
+          } else if (roomTypeText.endsWith("(網路訂房)")) {
+            groupCategory = "網路訂房";
+          } else {
+            groupCategory = person.ageGroup; // Use original age group for regular rooms
+          }
+          
+          const ageGroupData = dateResult[groupCategory];
           if (!ageGroupData) {
             return
           }
@@ -160,7 +287,7 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
             "計算價格": 0
           }
 
-          const rawPrice = this.getRoomPrice(roomTypeText, room.people.length, person.ageGroup, room.date)
+          const rawPrice = this.getRoomPrice(roomTypeText, room.people.length, person.ageGroup, room.date, person.orderNumber)
           if (typeof rawPrice === 'number' && result[key]["計算價格"] !== "無報價") {
             price = Math.round(rawPrice);
             result[key]["計算價格"] += price

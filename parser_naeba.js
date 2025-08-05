@@ -9,8 +9,8 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
       const row = data[i];
       const continuation = row[getColumnIndex("CA")];
       const bonusMeal = row[getColumnIndex("FG")];
-      const orderNumber = row[getColumnIndex("D")]
-      const auPrice = row[getColumnIndex("AU")]
+      const orderNumber = row[getColumnIndex("D")];
+      const auPrice = row[getColumnIndex("AU")];
 
       let roomRecord = null;
       firstDate = continuation === 1 ? null : firstDate;
@@ -18,23 +18,42 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
       for (let day = 0; day < 6; day++) {
         const baseCol = getColumnIndex("DB") + day * 8;
         const date = row[baseCol];
-        const roomType = row[baseCol + 5].split("(")[0];
+        const roomType = row[baseCol + 5];
         const roomNumber = row[baseCol + 6];
         const mealType = row[baseCol + 7];
         const formattedDate = date instanceof Date ? formatDate(date) : null;
 
         if (notNull(roomType)) {
           firstDate = firstDate === null ? formattedDate : firstDate;
-          const key = [formattedDate, day, roomType, roomNumber, continuation].join("/");
+          const key = [
+            formattedDate,
+            day,
+            roomType,
+            roomNumber,
+            continuation,
+          ].join("/");
           if (key in roomIndexs) {
-            roomRecord = rooms[roomIndexs[key]]
+            roomRecord = rooms[roomIndexs[key]];
           } else {
-            roomRecord = new RoomRecord(roomNumber, formattedDate, roomType, firstDate);
-            roomIndexs[key] = rooms.length
+            roomRecord = new RoomRecord(
+              roomNumber,
+              formattedDate,
+              roomType,
+              firstDate
+            );
+            roomIndexs[key] = rooms.length;
             rooms.push(roomRecord);
           }
           const ageType = this.detectAge(row);
-          const personRecord = new PersonRecord(row[4], mealType, ageType, bonusMeal, orderNumber, auPrice, continuation);
+          const personRecord = new PersonRecord(
+            row[4],
+            mealType,
+            ageType,
+            bonusMeal,
+            orderNumber,
+            auPrice,
+            continuation
+          );
           roomRecord.addPerson(personRecord);
         } else {
           firstDate = formattedDate;
@@ -47,6 +66,6 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
   detectAge(row) {
     const rawAge = row[getColumnIndex("BW")];
     if (rawAge === "成人") return rawAge;
-    return "孩童"
+    return "孩童";
   }
 }
