@@ -59,7 +59,20 @@ class ResultWriter {
     return Object.entries(roomTypeObj)
       .sort(([a_roomType, a] , [b_roomType, b]) => a.people - b.people)
       .sort(([a_roomType] , [b_roomType]) => a_roomType.localeCompare(b_roomType))
-      .map(([roomType, { people, price, totalNights }]) => roomType === "錯誤列表" ? "" : `${roomType}(${people/totalNights}人)$${price}`)
+      .map(([roomType, { people, price, totalNights }]) => {
+        if (roomType === "錯誤列表") return "";
+        
+        // Check if this is a special price room type (already formatted)
+        // Special price format: {orderNumber}{name}{people}人${price}|uniqueId
+        if (roomType.includes("人$")) {
+          // Strip the unique identifier (everything after |) for display
+          const displayRoomType = roomType.split("|")[0];
+          return displayRoomType; // Already formatted, return without unique ID
+        }
+        
+        // Regular room type formatting
+        return `${roomType}(${people/totalNights}人)$${price}`;
+      })
       .join('\n');
   }
 }
