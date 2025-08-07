@@ -60,24 +60,58 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
           nameIndex += 12;
           let adjacentName = data[j][nameIndex];
           let isIn = data[j][nameIndex - 3] === "IN";
-          let dayCount = 0;
+          let dayCount = 1;
+          let midStaySpecialPricingStartDate = null; // Track when mid-stay special pricing begins
+          let currentRoomType = roomType;
+          let hasMidStaySpecialPricing = false;
           while (notNull(adjacentName) && !isIn) {
-            nameIndex += 12;
-            dayCount++;
-            adjacentName = data[j][nameIndex];
             let adjacentDate = new Date(firstDate);
             adjacentDate.setDate(adjacentDate.getDate() + dayCount);
             adjacentDate = formatDate(adjacentDate);
-            isIn = data[j][nameIndex - 3] === "IN";
+            
+            // Skip special pricing detection if room type is already special
+            if (!roomType.endsWith("(官網)") && !roomType.endsWith("(網路訂房)")) {
+              for (let peopleCount = 0; peopleCount < roomSize; peopleCount++) {
+                const rowNum = j + peopleCount;
+                if (data[rowNum][nameIndex - 3]) { // Check the correct position for special pricing markers
+                  if (data[rowNum][nameIndex - 3].startsWith("ホテル")) {
+                    currentRoomType = roomType + "(官網)";
+                    hasMidStaySpecialPricing = true;
+                    break;
+                  }
+                  if (data[rowNum][nameIndex - 3].startsWith("WEB")) {
+                    currentRoomType = roomType + "(網路訂房)";
+                    hasMidStaySpecialPricing = true;
+                    break;
+                  }
+                }
+              }
+            }
+            
+            // Determine the appropriate first date for mid-stay special pricing
+            let roomFirstDate = firstDate;
+            if (hasMidStaySpecialPricing && midStaySpecialPricingStartDate === null) {
+              // This is the start of mid-stay special pricing
+              midStaySpecialPricingStartDate = adjacentDate;
+              roomFirstDate = midStaySpecialPricingStartDate;
+            } else if (hasMidStaySpecialPricing && midStaySpecialPricingStartDate !== null) {
+              // Continuing mid-stay special pricing
+              roomFirstDate = midStaySpecialPricingStartDate;
+            }
+            
             roomRecord = new RoomRecord(
               roomNumber,
               adjacentDate,
-              roomType,
-              firstDate
+              currentRoomType,
+              roomFirstDate
             );
             roomRecord.people = firstDayRoomRecord.people;
             // roomIndexes[key] = rooms.length
             rooms.push(roomRecord);
+            nameIndex += 12;
+            dayCount++;
+            adjacentName = data[j][nameIndex];
+            isIn = data[j][nameIndex - 3] === "IN";
           }
           roomNumber++;
         }
