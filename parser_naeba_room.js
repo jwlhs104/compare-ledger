@@ -3,49 +3,83 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
     const sizeMap = this.createRoomSize(sheet, 10);
     const roomRanges = this.createRoomRanges(sheet, 10);
     const data = sheet.getRange("E7:BCZ997").getValues();
-    const rooms = []
-    const roomIndexes = {}
-    for (let i=0; i<data[0].length; i+=12) {
-      const firstDate = formatDate(data[0][i+4]);
+    const rooms = [];
+    const roomIndexes = {};
+    for (let i = 0; i < data[0].length; i += 12) {
+      const firstDate = formatDate(data[0][i + 4]);
       let roomRecord = null;
       let roomNumber = 1;
-      for (let j=3; j<data.length; j++) {
+      for (let j = 3; j < data.length; j++) {
         if (data[j][i] === "IN") {
-          let nameIndex = i+3;
-          let dateOfBirthIndex = i+6;
-          let ageGroupIndex = i+8;
-          const roomType = this.getRoomByMin(roomRanges, j-3)
-          let firstDayRoomRecord = new RoomRecord(roomNumber, firstDate, roomType, firstDate);
+          let orderNumberIndex = i + 2;
+          let nameIndex = i + 3;
+          let dateOfBirthIndex = i + 6;
+          let ageGroupIndex = i + 8;
+          let roomType = this.getRoomByMin(roomRanges, j - 3);
+          let firstDayRoomRecord = new RoomRecord(
+            roomNumber,
+            firstDate,
+            roomType,
+            firstDate
+          );
           rooms.push(firstDayRoomRecord);
-          const roomSize = this.getRoomSize(sizeMap, j+7);
-          for (let peopleCount = 0; peopleCount<roomSize; peopleCount++) {
-            const rowNum = j+peopleCount;
+          const roomSize = this.getRoomSize(sizeMap, j + 7);
+          for (let peopleCount = 0; peopleCount < roomSize; peopleCount++) {
+            const rowNum = j + peopleCount;
+            if (data[rowNum][i].startsWith("ホテル")) {
+              roomType += "(官網)";
+              firstDayRoomRecord.roomType = roomType;
+            }
+            if (data[rowNum][i].startsWith("WEB")) {
+              roomType += "(網路訂房)";
+              firstDayRoomRecord.roomType = roomType;
+            }
+            const orderNumber = data[rowNum][orderNumberIndex];
             const name = data[rowNum][nameIndex];
             const ageGroupText = data[rowNum][ageGroupIndex];
             const dateOfBirth = formatDate(data[rowNum][dateOfBirthIndex]);
-            const ageGroup = this.determineAgeGroup(ageGroupText, dateOfBirth, firstDate)
+            const ageGroup = this.determineAgeGroup(
+              ageGroupText,
+              dateOfBirth,
+              firstDate
+            );
             if (name) {
-              firstDayRoomRecord.addPerson(new PersonRecord(name, null, ageGroup, null, "", 0, null))
+              firstDayRoomRecord.addPerson(
+                new PersonRecord(
+                  name,
+                  null,
+                  ageGroup,
+                  null,
+                  orderNumber,
+                  0,
+                  null
+                )
+              );
             }
           }
           nameIndex += 12;
           let adjacentName = data[j][nameIndex];
-          let isIn = data[j][nameIndex-3] === "IN"
+          let isIn = data[j][nameIndex - 3] === "IN";
           let dayCount = 0;
-          while(notNull(adjacentName) && !isIn) {
+          while (notNull(adjacentName) && !isIn) {
             nameIndex += 12;
-            dayCount ++;
+            dayCount++;
             adjacentName = data[j][nameIndex];
             let adjacentDate = new Date(firstDate);
             adjacentDate.setDate(adjacentDate.getDate() + dayCount);
-            adjacentDate = formatDate(adjacentDate)
-            isIn = data[j][nameIndex-3] === "IN"
-            roomRecord = new RoomRecord(roomNumber, adjacentDate, roomType, firstDate);
+            adjacentDate = formatDate(adjacentDate);
+            isIn = data[j][nameIndex - 3] === "IN";
+            roomRecord = new RoomRecord(
+              roomNumber,
+              adjacentDate,
+              roomType,
+              firstDate
+            );
             roomRecord.people = firstDayRoomRecord.people;
             // roomIndexes[key] = rooms.length
             rooms.push(roomRecord);
           }
-          roomNumber ++;
+          roomNumber++;
         }
       }
     }
@@ -53,10 +87,10 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
   }
   determineAgeGroup(ageGroup, dateOfBirth, checkInDate) {
     if (ageGroup) {
-      return ageGroup === "CH" ? "孩童" : "成人"
+      return ageGroup === "CH" ? "孩童" : "成人";
     }
-    if (!(dateOfBirth)) {
-      return "成人"
+    if (!dateOfBirth) {
+      return "成人";
     }
     const today = new Date(checkInDate);
     const birthDate = new Date(dateOfBirth);
@@ -65,8 +99,10 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
     let age = today.getFullYear() - birthDate.getFullYear();
 
     // Adjust if the birthday hasn't occurred yet this year
-    const isBeforeBirthday = today.getMonth() < birthDate.getMonth() || 
-                            (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate());
+    const isBeforeBirthday =
+      today.getMonth() < birthDate.getMonth() ||
+      (today.getMonth() === birthDate.getMonth() &&
+        today.getDate() < birthDate.getDate());
     if (isBeforeBirthday) {
       age--;
     }
@@ -75,35 +111,37 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
   }
   getRoomSize(sizeMap, index) {
     if (!sizeMap[index]) {
-      throw new Error(`Index ${index} not in sizeMap`)
+      throw new Error(`Index ${index} not in sizeMap`);
     }
-    return sizeMap[index]
+    return sizeMap[index];
   }
   createRoomSize(roomSheet, startRow) {
-    const mergedRanges = roomSheet.getRange(`C${startRow}:C997`).getMergedRanges();
+    const mergedRanges = roomSheet
+      .getRange(`C${startRow}:C997`)
+      .getMergedRanges();
     const mergedMap = {};
-    mergedRanges.forEach(range => {
+    mergedRanges.forEach((range) => {
       const startRow = range.getRow();
       const numRows = range.getNumRows();
-      for (let r = startRow; r<startRow+numRows; r++) {
-        mergedMap[r]=numRows
+      for (let r = startRow; r < startRow + numRows; r++) {
+        mergedMap[r] = numRows;
       }
-    })
-    return mergedMap
+    });
+    return mergedMap;
   }
   createRoomRanges(roomSheet, startRow) {
-    const searchValues = roomSheet.getRange(`C${startRow}:C997`).getValues()
-    const roomRanges = []
+    const searchValues = roomSheet.getRange(`C${startRow}:C997`).getValues();
+    const roomRanges = [];
     searchValues.forEach(([room], index) => {
-      room = room.trim ? room.trim() : room
+      room = room.trim ? room.trim() : room;
       if (room.startsWith && room.startsWith("苗王")) {
         roomRanges.push({
           min: index,
-          room
-        })
+          room,
+        });
       }
-    })
-    return roomRanges
+    });
+    return roomRanges;
   }
   getRoomByMin(roomRanges, row) {
     for (let i = roomRanges.length - 1; i >= 0; i--) {
@@ -112,5 +150,5 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
       }
     }
     return null; // Return null for invalid rows
-  };
+  }
 }
