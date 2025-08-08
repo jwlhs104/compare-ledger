@@ -15,6 +15,7 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
       let roomRecord = null;
       firstDate = continuation === 1 ? null : firstDate;
       let currentStayFirstDate = null; // Track first date for current stay type
+      let previousRoomType = null;
 
       for (let day = 0; day < 6; day++) {
         const baseCol = getColumnIndex("DB") + day * 8;
@@ -24,8 +25,10 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
         const mealType = row[baseCol + 7];
         const formattedDate = date instanceof Date ? formatDate(date) : null;
 
+        if (!previousRoomType) previousRoomType = roomType;
+
         if (notNull(roomType)) {
-          firstDate = firstDate === null ? formattedDate : firstDate;
+          firstDate = firstDate === null || previousRoomType !== roomType ? formattedDate : firstDate;
           
           // Detect if this is special pricing
           const isSpecialPricing = roomType.endsWith("(官網)") || roomType.endsWith("(網路訂房)");
@@ -71,6 +74,7 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
             continuation
           );
           roomRecord.addPerson(personRecord);
+          previousRoomType = roomType;
         } else {
           firstDate = null;
           // Reset special pricing tracking when no room type (between stays)
