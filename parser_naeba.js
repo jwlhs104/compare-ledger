@@ -29,7 +29,8 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
     return {
       firstDate: null,
       currentStayFirstDate: null,
-      previousRoomType: null
+      previousRoomType: null,
+      firstDateIndexMap: {}
     };
   }
 
@@ -102,7 +103,7 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
         break;
     }
 
-    this.createOrUpdateRoomRecord(dayInfo, roomFirstDate, rooms, roomIndexs, guestInfo);
+    this.createOrUpdateRoomRecord(dayInfo, roomFirstDate, rooms, roomIndexs, guestInfo, updatedContext.firstDateIndexMap);
     updatedContext.previousRoomType = dayInfo.roomType;
     
     return updatedContext;
@@ -131,11 +132,12 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
     return {
       firstDate: null,
       currentStayFirstDate: null,
-      previousRoomType: stayContext.previousRoomType
+      previousRoomType: stayContext.previousRoomType,
+      firstDateIndexMap: stayContext.firstDateIndexMap
     };
   }
 
-  createOrUpdateRoomRecord(dayInfo, roomFirstDate, rooms, roomIndexs, guestInfo) {
+  createOrUpdateRoomRecord(dayInfo, roomFirstDate, rooms, roomIndexs, guestInfo, firstDateIndexMap) {
     const key = [
       dayInfo.formattedDate,
       dayInfo.day,
@@ -143,6 +145,22 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
       dayInfo.roomNumber,
       guestInfo.continuation,
     ].join("/");
+    
+    let firstDateIndex;
+    if (roomFirstDate === dayInfo.formattedDate) {
+      if (firstDateIndexMap[roomFirstDate] !== undefined) {
+        firstDateIndex = firstDateIndexMap[roomFirstDate];
+      } else {
+        firstDateIndex = dayInfo.day;
+        firstDateIndexMap[roomFirstDate] = firstDateIndex;
+      }
+    } else {
+      if (firstDateIndexMap[roomFirstDate] !== undefined) {
+        firstDateIndex = firstDateIndexMap[roomFirstDate];
+      } else {
+        firstDateIndex = null;
+      }
+    }
     
     let roomRecord;
     if (key in roomIndexs) {
@@ -152,7 +170,8 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
         dayInfo.roomNumber,
         dayInfo.formattedDate,
         dayInfo.roomType,
-        roomFirstDate
+        roomFirstDate,
+        firstDateIndex
       );
       roomIndexs[key] = rooms.length;
       rooms.push(roomRecord);

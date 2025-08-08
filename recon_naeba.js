@@ -42,7 +42,7 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
     }
   }
 
-  getRoomPrice(roomTypeText, peopleAmount, ageGroup, date, orderNumber = null) {
+  getRoomPrice(roomTypeText, peopleAmount, ageGroup, date, orderNumber = null, name = null) {
     // Check if roomType ends with (官網) or (網路訂房)
     if (
       roomTypeText.endsWith("(官網)") ||
@@ -51,7 +51,7 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
       return this.getPriceFromGoogleSheet(
         roomTypeText,
         peopleAmount,
-        ageGroup,
+        name,
         date,
         orderNumber
       );
@@ -67,7 +67,7 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
   getPriceFromGoogleSheet(
     roomTypeText,
     peopleAmount,
-    ageGroup,
+    name,
     date,
     orderNumber
   ) {
@@ -80,11 +80,11 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
       const roomTypeCol = getColumnIndex("E");
       const dateCol = getColumnIndex("B");
       const priceCol = getColumnIndex("L");
-      const nameCol = getColumnIndex("H"); // Column H for name
+      const nameCol = getColumnIndex("AH"); // Column H for name
       const peopleCol = getColumnIndex("J"); // Column J for people count
 
       // Search for matching orderNumber first (most specific match)
-      if (orderNumber) {
+      if (orderNumber && name) {
         for (let i = 1; i < data.length; i++) {
           // Skip header row
           const row = data[i];
@@ -95,7 +95,8 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
 
           if (
             sheetOrderNumber &&
-            sheetOrderNumber.toString() === orderNumber.toString()
+            sheetOrderNumber.toString() === orderNumber.toString() &&
+            sheetName === name
           ) {
             if (
               !isNaN(sheetPrice) &&
@@ -115,42 +116,33 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
         }
       }
 
-      // If no orderNumber match found, try matching by room type and date
-      for (let i = 1; i < data.length; i++) {
-        // Skip header row
-        const row = data[i];
-        const sheetRoomType = row[roomTypeCol];
-        const sheetDate = row[dateCol];
-        const sheetPrice = row[priceCol];
-        const sheetName = row[nameCol];
-        const sheetPeople = row[peopleCol];
-
-        // Match room type (remove the suffix for comparison)
-        const baseRoomType = roomTypeText.replace(/\((官網|網路訂房)\)$/, "");
-
-        if (sheetRoomType && sheetRoomType.includes(baseRoomType)) {
-          // Format date for comparison
-          let formattedSheetDate;
-          if (sheetDate instanceof Date) {
-            formattedSheetDate = formatDate(sheetDate);
-          } else if (typeof sheetDate === "string") {
-            formattedSheetDate = formatDate(new Date(sheetDate));
-          }
+      if (orderNumber) {
+        for (let i = 1; i < data.length; i++) {
+          // Skip header row
+          const row = data[i];
+          const sheetOrderNumber = row[orderNumberCol];
+          const sheetPrice = row[priceCol];
+          const sheetName = row[nameCol];
+          const sheetPeople = row[peopleCol];
 
           if (
-            formattedSheetDate === date &&
-            !isNaN(sheetPrice) &&
-            sheetPrice !== null &&
-            sheetPrice !== ""
+            sheetOrderNumber &&
+            sheetOrderNumber.toString() === orderNumber.toString() 
           ) {
-            // Return object with price and additional data for room type formatting
-            return {
-              price: Number(sheetPrice),
-              orderNumber: orderNumber || "",
-              name: sheetName || "",
-              people: sheetPeople || peopleAmount,
-              roomType: sheetRoomType || "",
-            };
+            if (
+              !isNaN(sheetPrice) &&
+              sheetPrice !== null &&
+              sheetPrice !== ""
+            ) {
+              // Return object with price and additional data for room type formatting
+              return {
+                price: Number(sheetPrice),
+                orderNumber: sheetOrderNumber,
+                name: sheetName || "",
+                people: sheetPeople || peopleAmount,
+                roomType: row[roomTypeCol] || "",
+              };
+            }
           }
         }
       }
@@ -167,7 +159,7 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
     const roomMap = new Map(); // key = roomNumber + firstDate
 
     for (let room of rooms) {
-      const key = room.roomType + "_" + room.roomNumber + "_" + room.firstDate;
+      let key = room.roomType + "_" + room.roomNumber + "_" + room.firstDate + "_" + room.firstDateIndex;
       if (!roomMap.has(key)) {
         roomMap.set(key, new StayRecord(room.firstDate, room.roomNumber));
       }
@@ -178,9 +170,9 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
     return stayRecords;
   }
 
-  getSpecialPricingData(roomTypeText, roomPeopleCount, orderNumber, date) {
+  getSpecialPricingData(roomTypeText, roomPeopleCount, orderNumber, date, name) {
     try {
-      const rawPrice = this.getRoomPrice(roomTypeText, roomPeopleCount, "成人", date, orderNumber);
+      const rawPrice = this.getRoomPrice(roomTypeText, roomPeopleCount, "成人", date, orderNumber, name);
       
       if (typeof rawPrice === "object" && rawPrice.price) {
         return { price: rawPrice.price, data: rawPrice, error: null };
@@ -302,7 +294,8 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
             roomTypeText, 
             room.people.length, 
             room.people[0]?.orderNumber, 
-            room.date
+            room.date,
+            room.people[0]?.name
           );
         }
 
@@ -376,7 +369,8 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
             room.people.length,
             person.ageGroup,
             room.date,
-            person.orderNumber
+            person.orderNumber,
+            person.name
           );
           if (
             typeof rawPrice === "number" &&

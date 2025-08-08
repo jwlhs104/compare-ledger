@@ -27,8 +27,9 @@ class StayRecord {
 
 
 class RoomRecord {
-  constructor(roomNumber, date, roomType, firstDate) {
+  constructor(roomNumber, date, roomType, firstDate, firstDateIndex) {
     this.roomNumber = roomNumber;
+    this.firstDateIndex = firstDateIndex;
     this.date = date;
     this.roomType = roomType;
     this.firstDate = firstDate;
