@@ -72,7 +72,7 @@ class NaebaInvoiceParser extends BaseInvoiceParser {
           );
           roomRecord.addPerson(personRecord);
         } else {
-          firstDate = formattedDate;
+          firstDate = null;
           // Reset special pricing tracking when no room type (between stays)
           currentStayFirstDate = null;
         }
