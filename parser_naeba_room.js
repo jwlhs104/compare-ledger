@@ -15,6 +15,7 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
           let nameIndex = i + 3;
           let dateOfBirthIndex = i + 6;
           let ageGroupIndex = i + 8;
+          let foodIndex = i + 1;
           let roomType = this.getRoomByMin(roomRanges, j - 3);
           let firstDayRoomRecord = new RoomRecord(
             roomNumber,
@@ -38,6 +39,7 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
             const name = data[rowNum][nameIndex];
             const ageGroupText = data[rowNum][ageGroupIndex];
             const dateOfBirth = formatDate(data[rowNum][dateOfBirthIndex]);
+            const food = foodTextMappingData[data[rowNum][foodIndex]];
             const ageGroup = this.determineAgeGroup(
               ageGroupText,
               dateOfBirth,
@@ -47,7 +49,7 @@ class NaebaRoomInvoiceParser extends BaseInvoiceParser {
               firstDayRoomRecord.addPerson(
                 new PersonRecord(
                   name,
-                  null,
+                  food,
                   ageGroup,
                   null,
                   orderNumber,

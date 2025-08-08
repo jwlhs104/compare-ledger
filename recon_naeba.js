@@ -259,10 +259,10 @@ class NaebaReconciliationLogic extends BaseReconciliationLogic {
     const mealType = person.mealType;
     
     if (mealType === "早餐" || mealType === "早晚餐") {
-      ageGroupData.餐食 += foodCostData.雫石[person.ageGroup].早餐;
+      ageGroupData.餐食 += foodCostData.苗王[person.ageGroup].早餐;
     }
     if (mealType === "晚餐" || mealType === "早晚餐") {
-      ageGroupData.餐食 += foodCostData.雫石[person.ageGroup].晚餐;
+      ageGroupData.餐食 += foodCostData.苗王[person.ageGroup].晚餐;
     }
     if (person.ageGroup === "成人") {
       ageGroupData.入湯稅 += 150;
