@@ -1,6 +1,5 @@
 class BaseReconciliationLogic {
   constructor(priceSheet, roomTypeMap) {
-    super();
     this.priceSheet = priceSheet;
     this.roomTypeMap = roomTypeMap;
     this.specialPriceData = null;
