@@ -1,10 +1,10 @@
 class HotelReconciliationFactory {
-  static create(hotelName, priceSheet, roomTypeMap, roomSpecifier, searchRanges) {
+  static create({hotelName, priceSheet, roomTypeMap, roomSpecifier, roomNameRanges, roomSizeRanges}) {
     switch (hotelName) {
       case '苗王':
         return {
           table4Parser: new NaebaInvoiceParser(),
-          roomParser: new NaebaRoomInvoiceParser(roomSpecifier, searchRanges),
+          roomParser: new NaebaRoomInvoiceParser(roomSpecifier, roomNameRanges, roomSizeRanges),
           logic: new NaebaReconciliationLogic(hotelName, priceSheet, roomTypeMap)
         };
       default:

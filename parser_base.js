@@ -219,9 +219,10 @@ class BaseInvoiceParser {
   }
 }
 class BaseRoomInvoiceParser {
-  constructor(roomSpecifier, searchRanges) {
+  constructor(roomSpecifier, roomNameRanges, roomSizeRanges) {
     this.roomSpecifier = roomSpecifier;
-    this.searchRanges = searchRanges;
+    this.roomNameRanges = roomNameRanges;
+    this.roomSizeRanges = roomSizeRanges;
   }
   parse(sheet) {
     const sizeMap = this.createRoomSize(sheet, 10);
@@ -387,7 +388,7 @@ class BaseRoomInvoiceParser {
   }
   createRoomSize(roomSheet) {
     const mergedRanges = roomSheet
-      .getRange(this.searchRanges)
+      .getRange(this.roomSizeRanges)
       .getMergedRanges();
     const mergedMap = {};
     mergedRanges.forEach((range) => {
@@ -400,7 +401,7 @@ class BaseRoomInvoiceParser {
     return mergedMap;
   }
   createRoomRanges(roomSheet, startRow) {
-    const searchValues = roomSheet.getRange(this.searchRanges).getValues();
+    const searchValues = roomSheet.getRange(this.roomNameRanges).getValues();
     const roomRanges = [];
     searchValues.forEach(([room], index) => {
       room = room.trim ? room.trim() : room;

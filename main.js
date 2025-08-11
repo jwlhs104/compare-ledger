@@ -13,7 +13,8 @@ const ledger =
     orderNumberColumn: 14,
     resortSnowTicketColumn: 16,
     roomSpecifier: "苗王",
-    searchRanges: "C10:C997"
+    roomNameRanges: "C10:C997",
+    roomSizeRanges: "C10:C997"
   }
 
 /**
@@ -24,12 +25,12 @@ const ledger =
 
 // main.gs
 function reconcileHotel() {
-  const { hotelName, table4SheetId, table4SheetName, roomSheetId, roomSheetName, priceSheetId, priceSheetName, roomSpecifier, searchRanges } = ledger
+  const { hotelName, table4SheetId, table4SheetName, roomSheetId, roomSheetName, priceSheetId, priceSheetName, roomSpecifier, roomNameRanges, roomSizeRanges } = ledger
   const table4Sheet = SpreadsheetApp.openById(table4SheetId).getSheetByName(table4SheetName);
   const roomSheet = SpreadsheetApp.openById(roomSheetId).getSheetByName(roomSheetName);
   const priceSheet = SpreadsheetApp.openById(priceSheetId).getSheetByName(priceSheetName);
   const targetSheet = SpreadsheetApp.getActive().getSheetByName("房費核對");
-  const { table4Parser, roomParser, logic } = HotelReconciliationFactory.create(hotelName, priceSheet, roomTypeMap, roomSpecifier, searchRanges);
+  const { table4Parser, roomParser, logic } = HotelReconciliationFactory.create({hotelName, priceSheet, roomTypeMap, roomSpecifier, roomNameRanges, roomSizeRanges});
   const table4Rooms = table4Parser.parse(table4Sheet);
   const table4Result = logic.reconcile(table4Rooms);
   const table4Writer = new ResultWriter(columnMap["表4"]);
