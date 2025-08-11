@@ -219,6 +219,10 @@ class BaseInvoiceParser {
   }
 }
 class BaseRoomInvoiceParser {
+  constructor(roomSpecifier, searchRanges) {
+    this.roomSpecifier = roomSpecifier;
+    this.searchRanges = searchRanges;
+  }
   parse(sheet) {
     const sizeMap = this.createRoomSize(sheet, 10);
     const roomRanges = this.createRoomRanges(sheet, 10);
@@ -381,9 +385,9 @@ class BaseRoomInvoiceParser {
     }
     return sizeMap[index];
   }
-  createRoomSize(roomSheet, startRow) {
+  createRoomSize(roomSheet) {
     const mergedRanges = roomSheet
-      .getRange(`C${startRow}:C997`)
+      .getRange(this.searchRanges)
       .getMergedRanges();
     const mergedMap = {};
     mergedRanges.forEach((range) => {
@@ -396,11 +400,11 @@ class BaseRoomInvoiceParser {
     return mergedMap;
   }
   createRoomRanges(roomSheet, startRow) {
-    const searchValues = roomSheet.getRange(`C${startRow}:C997`).getValues();
+    const searchValues = roomSheet.getRange(this.searchRanges).getValues();
     const roomRanges = [];
     searchValues.forEach(([room], index) => {
       room = room.trim ? room.trim() : room;
-      if (room.startsWith && room.startsWith("苗王")) {
+      if (room.startsWith && room.startsWith(this.roomSpecifier)) {
         roomRanges.push({
           min: index,
           room,
