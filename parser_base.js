@@ -252,14 +252,17 @@ class BaseRoomInvoiceParser {
           const roomSize = this.getRoomSize(sizeMap, j + 7);
           for (let peopleCount = 0; peopleCount < roomSize; peopleCount++) {
             const rowNum = j + peopleCount;
-            if (data[rowNum][i].startsWith("ホテル")) {
-              roomType += "(官網)";
-              firstDayRoomRecord.roomType = roomType;
+            if (typeof data[rowNum][i] === "string") {
+              if (data[rowNum][i].startsWith("ホテル")) {
+                roomType += "(官網)";
+                firstDayRoomRecord.roomType = roomType;
+              }
+              if (data[rowNum][i].startsWith("WEB")) {
+                roomType += "(網路訂房)";
+                firstDayRoomRecord.roomType = roomType;
+              }
             }
-            if (data[rowNum][i].startsWith("WEB")) {
-              roomType += "(網路訂房)";
-              firstDayRoomRecord.roomType = roomType;
-            }
+
             const orderNumber = data[rowNum][orderNumberIndex];
             const name = data[rowNum][nameIndex];
             const ageGroupText = data[rowNum][ageGroupIndex];
