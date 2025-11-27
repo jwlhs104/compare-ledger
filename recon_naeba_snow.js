@@ -1,6 +1,5 @@
 class NaebaSnowTicketReconciliationLogic {
   constructor() {
-    this.snowTicketSinglePrice = 4600; // Naeba snow ticket price per ticket
   }
 
   reconcile(snowTickets) {
@@ -24,7 +23,7 @@ class NaebaSnowTicketReconciliationLogic {
       }
 
       // Add price for this ticket (each ticket is ¥4600)
-      result[date][ageType] += this.snowTicketSinglePrice;
+      result[date][ageType] += 1
 
       // Add order number to the set for tracking
       if (orderNumber) {
