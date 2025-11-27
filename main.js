@@ -45,7 +45,7 @@ function reconcileSnowTicket() {
   const { hotelName, table4SheetId, table4SheetName, snowTicketColumn, resortSheetId, resortSheetName, resortSnowTicketColumn, orderNumberColumn, filterResort } = ledger
   const table4Sheet = SpreadsheetApp.openById(table4SheetId).getSheetByName(table4SheetName);
   const resortSheet = SpreadsheetApp.openById(resortSheetId).getSheetByName(resortSheetName);
-  const targetSheet = SpreadsheetApp.getActive().getSheetByName("苗王雪票核對");
+  const targetSheet = SpreadsheetApp.getActive().getSheetByName("雪票核對");
   const { table4Parser, resortParser, logic } = SnowTicketReconciliationFactory.create(hotelName);
   const table4Tickets = table4Parser.parse(table4Sheet, filterResort);
   const table4Result = logic.reconcile(table4Tickets);
