@@ -12,6 +12,7 @@ const ledger =
     snowTicketColumn: 5,
     orderNumberColumn: 14,
     resortSnowTicketColumn: 16,
+    filterResort: null,
     roomSpecifier: "苗王",
     roomNameRanges: "C10:C997",
     roomSizeRanges: "C10:C997"
