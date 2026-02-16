@@ -1,3 +1,10 @@
+const karizawaInvoice = {
+  hotelInvoiceSheetId: "",       // TODO: fill in the Google Sheets ID of 01.飯店帳單-25-26 輕井澤
+  hotelInvoiceSheetName: "Sheet1", // TODO: fill in the correct sheet tab name
+  seasonStartYear: 2025,
+  targetSheetName: "核對",        // TODO: confirm the target sheet tab name
+}
+
 const ledger =
   {
     hotelName: "苗王",
@@ -74,13 +81,30 @@ function au_check() {
   }
 }
 
+function reconcileKarizawaHotelInvoice() {
+  const { hotelInvoiceSheetId, hotelInvoiceSheetName, seasonStartYear, targetSheetName } = karizawaInvoice;
+  const invoiceSheet = SpreadsheetApp.openById(hotelInvoiceSheetId).getSheetByName(hotelInvoiceSheetName);
+  const targetSheet = SpreadsheetApp.getActive().getSheetByName(targetSheetName);
+
+  const parser = new KarizawaHotelInvoiceParser(seasonStartYear);
+  const entries = parser.parse(invoiceSheet);
+
+  const logic = new KarizawaHotelInvoiceReconcileLogic();
+  const result = logic.reconcile(entries);
+
+  const writer = new ResultWriterHotelInvoice(columnMap["飯店帳單"]);
+  writer.writeToSheet(result, targetSheet);
+}
+
 function onOpen(){
   SpreadsheetApp.getUi()
    .createMenu('櫻雪專用功能')
    .addSeparator()
-   .addItem('更新房費核對','reconcileHotel')  
+   .addItem('更新房費核對','reconcileHotel')
    .addSeparator()
    .addItem('更新雪票核對', 'reconcileSnowTicket')
+   .addSeparator()
+   .addItem('更新飯店帳單 (輕井澤)', 'reconcileKarizawaHotelInvoice')
    .addSeparator()
    .addToUi();
 }

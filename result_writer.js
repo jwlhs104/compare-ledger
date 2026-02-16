@@ -77,6 +77,42 @@ class ResultWriter {
   }
 }
 
+class ResultWriterHotelInvoice {
+  constructor(columnMap) {
+    this.columnMap = columnMap;
+  }
+
+  // result: { dateStr: { 成人: { 房費, 入湯稅, 手数料, 其他, 總價 } } }
+  writeToSheet(result, targetSheet) {
+    const targetValues = targetSheet.getRange("A11:B").getValues();
+
+    targetValues.forEach(([date, item], index) => {
+      const formattedDate = formatDate(date);
+      const rowIndex = 11 + index;
+
+      if (formattedDate in result && item in result[formattedDate]) {
+        const dayRow = result[formattedDate][item];
+
+        if ("房費" in this.columnMap && "房費" in dayRow) {
+          targetSheet.getRange(rowIndex, this.columnMap["房費"]).setValue(dayRow["房費"]);
+        }
+        if ("入湯稅" in this.columnMap && "入湯稅" in dayRow) {
+          targetSheet.getRange(rowIndex, this.columnMap["入湯稅"]).setValue(dayRow["入湯稅"]);
+        }
+        if ("手続費" in this.columnMap && "手数料" in dayRow) {
+          targetSheet.getRange(rowIndex, this.columnMap["手続費"]).setValue(dayRow["手数料"]);
+        }
+        if ("其他" in this.columnMap && "其他" in dayRow) {
+          targetSheet.getRange(rowIndex, this.columnMap["其他"]).setValue(dayRow["其他"]);
+        }
+        if ("總計" in this.columnMap && "總價" in dayRow) {
+          targetSheet.getRange(rowIndex, this.columnMap["總計"]).setValue(dayRow["總價"]);
+        }
+      }
+    });
+  }
+}
+
 class ResultWriterSnowTicket {
 
   writeToSheet(result, targetSheet, column, orderNumberColumn) {
