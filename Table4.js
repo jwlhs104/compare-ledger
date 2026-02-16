@@ -77,21 +77,3 @@ function getAdvancePayments() {
 
   }
 }
-function getColumnIndex(columnLabel) {
-  // Convert the column label to uppercase for consistency
-  columnLabel = columnLabel.toUpperCase();
-
-  let index = 0;
-  let multiplier = 1;
-
-  for (let i = columnLabel.length - 1; i >= 0; i--) {
-    const charCode = columnLabel.charCodeAt(i) - 65; // ASCII code of 'A' is 65
-    index += (charCode + 1) * multiplier; // Add 1 to charCode to account for 'A' being 1, 'B' being 2, and so on
-    multiplier *= 26;
-  }
-
-  return index - 1; // Adjust for 0-based index (optional, depends on your use case)
-}
-function notNull(string) {
-  return string && string !== "" && string !== "X" && string !== "Ｘ" && string !=="#VALUE!"
-}

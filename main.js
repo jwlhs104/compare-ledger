@@ -5,13 +5,14 @@ const ledger =
     table4SheetName: "日記帳",
     roomSheetId: "1fkUnjDDIv-dN6HJUCpFcPhanCmbvGO2Amdn3LQdFCC0",
     roomSheetName: "Naeba25-26",
-    resortSheetId: "1tZmH4KPmjirHk6HJpJma4MtsYJ48SIgTrRzdthpfwrk",
+    resortSheetId: "1d9vUaoT6NkwXoWLEOlSZe6xV1dI-T_Hp0J9iVBmLOm0",
     resortSheetName: "Rental表自動",
     priceSheetId: "1S6og0-YWx_tW8S52DHl3PwyWhs3J8OGSAjNoR22iHv8",
     priceSheetName: "苗王",
     snowTicketColumn: 5,
     orderNumberColumn: 14,
     resortSnowTicketColumn: 16,
+    resortOrderNumberColumn: 25,
     filterResort: null,
     roomSpecifier: "苗王",
     roomNameRanges: "C10:C997",
@@ -43,7 +44,7 @@ function reconcileHotel() {
 }
 
 function reconcileSnowTicket() {
-  const { hotelName, table4SheetId, table4SheetName, snowTicketColumn, resortSheetId, resortSheetName, resortSnowTicketColumn, orderNumberColumn, filterResort } = ledger
+  const { hotelName, table4SheetId, table4SheetName, snowTicketColumn, resortSheetId, resortSheetName, resortSnowTicketColumn, orderNumberColumn, filterResort, resortOrderNumberColumn } = ledger
   const table4Sheet = SpreadsheetApp.openById(table4SheetId).getSheetByName(table4SheetName);
   const resortSheet = SpreadsheetApp.openById(resortSheetId).getSheetByName(resortSheetName);
   const targetSheet = SpreadsheetApp.getActive().getSheetByName("雪票核對");
@@ -55,7 +56,7 @@ function reconcileSnowTicket() {
 
   const resortTickets = resortParser.parse(resortSheet);
   const resortResult = logic.reconcile(resortTickets);
-  resultWriter.writeToSheet(resortResult, targetSheet, resortSnowTicketColumn);
+  resultWriter.writeToSheet(resortResult, targetSheet, resortSnowTicketColumn, resortOrderNumberColumn);
 
 }
 
@@ -78,6 +79,8 @@ function onOpen(){
    .createMenu('櫻雪專用功能')
    .addSeparator()
    .addItem('更新房費核對','reconcileHotel')  
+   .addSeparator()
+   .addItem('更新雪票核對', 'reconcileSnowTicket')
    .addSeparator()
    .addToUi();
 }
